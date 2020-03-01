@@ -57,6 +57,7 @@ void DistEngine::validateRootsAndRetrieveEdges(
     // Compute the root edges and generate the appropriate gradients.
     rootEdges.push_back(torch::autograd::impl::gradient_edge(root));
     grads.push_back(at::ones_like(root, LEGACY_CONTIGUOUS_MEMORY_FORMAT));
+    LOG(ERROR) << "hcz: root edge from a scalar output: " << rootEdges.back().function->name() << " seq: " << rootEdges.back().function->sequence_nr();
   }
 
   // Validate rootEdges and grads.
@@ -102,9 +103,10 @@ void DistEngine::computeDependencies(
   while (!queue.empty()) {
     auto fn = queue.front();
     queue.pop();
-
+    std::string line = fn->name();
     for (const auto& edge : fn->next_edges()) {
       if (auto nextFn = edge.function.get()) {
+        line += "\n    ----> " + nextFn->name() + " @" + std::to_string(nextFn->sequence_nr());
         dependencies[nextFn] += 1;
         const bool wasInserted = seen.insert(nextFn).second;
         if (wasInserted) {
@@ -137,8 +139,12 @@ void DistEngine::computeDependencies(
         }
       }
     }
+    LOG(ERROR) << "hcz: Edges from node @" <<  std::to_string(fn->sequence_nr()) << ": " << line;
   }
 
+  // hcz: AccumulateGrad nodes are marked at not-needed and the local autograd 
+  // engine doesn't call 'applly()' at all. That's why the post hook installed
+  // by DistributedDataParallel is not called.
   // Now lets compute which functions need to be executed. The algorithm is as
   // follows:
   // 1. Create a dummy GraphRoot which points to all 'send' functions for this
@@ -167,6 +173,8 @@ void DistEngine::computeDependencies(
 
     // Create a dummy GraphRoot and run init_to_execute with it.
     GraphRoot dummyRoot(edges, {});
+    // hcz: 'outputEdges' point to nodes/functions which have no edge.
+    // Either AccumulateGrad or RecvRpcBackward for now.
     graphTask->init_to_execute(dummyRoot, outputEdges);
 
     // Mark all 'RecvRPCBackward' as needing execution.
@@ -183,6 +191,8 @@ std::shared_ptr<rpc::FutureMessage> DistEngine::runEngineAndAccumulateGradients(
     const ContextPtr& autogradContext,
     const std::shared_ptr<Node>& graphRoot,
     const edge_list& outputEdges) {
+  LOG(ERROR) << "DistEngine::runEngineAndAccumulateGradients() with root @"
+             << graphRoot.get() << " name: " << graphRoot->name();
   auto futureGrads = engine_.execute_with_graph_task(
       autogradContext->retrieveGraphTask(), graphRoot);
 
@@ -192,7 +202,8 @@ std::shared_ptr<rpc::FutureMessage> DistEngine::runEngineAndAccumulateGradients(
   auto accumulateGradFuture = std::make_shared<rpc::FutureMessage>();
 
   futureGrads->addCallback(
-      [autogradContext, outputEdges, accumulateGradFuture](
+      [autogradContext, outputEdges, accumulateGradFuture,
+      root_addr = graphRoot.get()](
           const variable_list& grads,
           const c10::optional<torch::utils::FutureError>& error) {
         if (error) {
@@ -200,10 +211,14 @@ std::shared_ptr<rpc::FutureMessage> DistEngine::runEngineAndAccumulateGradients(
           accumulateGradFuture->setError(error->what());
           return;
         }
-
+        LOG(ERROR) << "hcz: Running GraphTask completion callback on "
+                   << grads.size()
+                   << " grads and out edges and root addr: " << root_addr;
         // Accumulate all the gradients in the context.
         TORCH_INTERNAL_ASSERT(grads.size() == outputEdges.size());
         for (size_t i = 0; i < grads.size(); i++) {
+          LOG(ERROR) << "hcz: one edge from root @" << root_addr << ": "
+                     << outputEdges[i].function->name();
           // It is possible that the grad is not defined since a separate
           // invocation of the autograd engine on the same node might actually
           // compute this gradient. Also accumulate grads only for
@@ -297,10 +312,12 @@ std::shared_ptr<rpc::FutureMessage> DistEngine::executeSendFunctionAsync(
   }
 }
 
+// hcz: The entry point of call dist_autograd.backward(context_id, [loss]) in Python
 void DistEngine::execute(
     int64_t contextId,
     const variable_list& roots,
     bool retainGraph) {
+  LOG(ERROR) << "Running DistEngine::execute() with " << roots.size() << " roots.";
   // Retrieve the context for the given context_id. This will throw if the
   // context_id is invalid.
   auto autogradContext =
@@ -323,6 +340,7 @@ void DistEngine::execute(
         initializedContextIds_.find(autogradContext->contextId()) ==
         initializedContextIds_.end());
 
+    LOG(ERROR) << "hcz: computing dependencies and set up the graphTask in the context.";
     computeDependencies(
         autogradContext, rootEdges, grads, graphRoot, outputEdges, retainGraph);
 

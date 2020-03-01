@@ -63,6 +63,7 @@ variable_list run_backward(
     const variable_list& inputs,
     bool allow_unused) {
   size_t num_tensors = outputs.size();
+  LOG(ERROR) << "hcz: running run_backward() with " << outputs.size() << " outputs and " << inputs.size() << " inputs.";
   edge_list roots;
   roots.reserve(num_tensors);
   for (size_t i = 0; i < num_tensors; i++) {
