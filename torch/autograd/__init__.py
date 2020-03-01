@@ -14,6 +14,8 @@ from .grad_mode import no_grad, enable_grad, set_grad_enabled
 from .anomaly_mode import detect_anomaly, set_detect_anomaly
 from . import profiler
 
+from torch.hcz_logger import gLogger
+
 __all__ = ['Variable', 'Function', 'backward', 'grad_mode']
 
 
@@ -93,7 +95,7 @@ def backward(tensors, grad_tensors=None, retain_graph=None, create_graph=False, 
     grad_tensors = _make_grads(tensors, grad_tensors)
     if retain_graph is None:
         retain_graph = create_graph
-
+    gLogger.info(f"Entering CPython _execution_engine.run_backward()")
     Variable._execution_engine.run_backward(
         tensors, grad_tensors, retain_graph, create_graph,
         allow_unreachable=True)  # allow_unreachable flag

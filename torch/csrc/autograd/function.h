@@ -84,6 +84,7 @@ TORCH_API void deleteNode(Node* function);
 /// are created in one thread and `C` is created in a new thread, there are *no
 /// guarantees* w.r.t. the ordering of `C` relative to `A` or `B`.
 ///~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+// hcz: Function/Node base class
 struct TORCH_API Node : std::enable_shared_from_this<Node> {
  public:
   /// Construct a new `Node` with the given `next_edges`. `sequence_nr` is
@@ -229,6 +230,7 @@ struct TORCH_API Node : std::enable_shared_from_this<Node> {
   /// output of this function should be computed.
   bool should_compute_output(size_t output_edge_index) const {
     TORCH_CHECK(output_edge_index < num_outputs(), "Index out of range");
+    // Whether the edge has a function attached.
     return next_edges_[output_edge_index].is_valid();
   }
 
@@ -337,6 +339,9 @@ struct TORCH_API Node : std::enable_shared_from_this<Node> {
  protected:
   static uint64_t& get_next_sequence_nr();
 
+  // hcz: 'inputs' has grads for all ordered incoming edges to this node/function in the reverse grad graph.
+  // The inputs of this node during the forward pass are bookkeeped inside the node/function itself,
+  // e.g. 'mul_Tensor()' set up a 'MulBackward0' during forward pass.
   /// Performs the `Node`'s actual operation.
   virtual variable_list apply(variable_list&& inputs) = 0;
 
