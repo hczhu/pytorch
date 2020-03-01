@@ -109,6 +109,7 @@ const ContextPtr DistAutogradContainer::newContext() {
               std::forward_as_tuple(
                   std::make_shared<DistAutogradContext>(next_context_id_)))
           .first->second;
+  LOG(ERROR) << "hcz: a new context: " << next_context_id_;
 
   current_context_id_ = next_context_id_++;
   return context;
