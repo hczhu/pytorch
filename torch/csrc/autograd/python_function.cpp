@@ -798,11 +798,14 @@ PyObject* THPFunction__register_hook_dict(THPFunction *self, PyObject *_var)
   std::unique_ptr<FunctionPreHook> hook(new PyFunctionPreHook(
       var->backward_hooks, var->cdata.output_nr()));
   auto cdata = self->cdata.lock();
-  TORCH_CHECK(cdata,
-    "Legacy autograd function had register_hook called before the function was "
-    "invoked.  This usage pattern is no longer supported: please call register_hook "
-    "AFTER calling your function, or port your code to use non-legacy autograd function, see: "
-    "https://pytorch.org/docs/stable/notes/extending.html#extending-torch-autograd")
+  TORCH_CHECK(
+      cdata,
+      "Legacy autograd function had register_hook called before the function was "
+      "invoked.  This usage pattern is no longer supported: please call register_hook "
+      "AFTER calling your function, or port your code to use non-legacy autograd function, see: "
+      "https://pytorch.org/docs/stable/notes/extending.html#extending-torch-autograd")
+  LOG(ERROR) << "hcz: adding a pre hook to node: " << cdata->name() << " @"
+             << cdata->sequence_nr();
   cdata->add_pre_hook(std::move(hook));
   Py_RETURN_NONE;
   END_HANDLE_TH_ERRORS
