@@ -68,6 +68,7 @@ void DistAutogradContext::accumulateGrad(
     const torch::autograd::Variable& variable,
     const torch::Tensor& grad,
     size_t num_expected_refs) {
+  LOG(ERROR) << "hcz: dist auto accumulating for variable: "  << variable.toString();
   TORCH_INTERNAL_ASSERT(grad.defined());
   TORCH_INTERNAL_ASSERT(variable.requires_grad());
 
