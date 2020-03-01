@@ -23,6 +23,7 @@ AccumulateGrad::AccumulateGrad(Variable variable_)
 }
 
 auto AccumulateGrad::apply(variable_list&& grads) -> variable_list {
+  LOG(ERROR) << "hcz: AccumulateGrad::appy to " << grads.size() << " grads.";
   // XXX: this method is not thread-safe!
   check_input_variables("AccumulateGrad", grads, 1, 0);
 
@@ -35,6 +36,7 @@ auto AccumulateGrad::apply(variable_list&& grads) -> variable_list {
 
   auto new_grad = std::move(grads[0]);
   for (auto& hook : impl::hooks(variable)) {
+    LOG(ERROR) << "hcz: running a post from Variable metadata: @" << hook;
     new_grad = (*hook)({new_grad})[0];
   }
 

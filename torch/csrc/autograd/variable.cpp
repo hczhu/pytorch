@@ -120,6 +120,7 @@ namespace impl {
     }
   }
 
+  // hcz: Hooks are associated with a function node.
   std::shared_ptr<Node> grad_accumulator(const Variable& self) {
     auto autograd_meta = get_autograd_meta(self);
     if (!autograd_meta) {
@@ -139,6 +140,7 @@ namespace impl {
     if (result)
       return result;
 
+    LOG(ERROR) << "hcz: Creating a new AccumulateGrad instance for variable with output_nr @" << self.output_nr();
     c10::raw::intrusive_ptr::incref(self.unsafeGetTensorImpl());
     auto intrusive_from_this = c10::intrusive_ptr<at::TensorImpl>::reclaim(self.unsafeGetTensorImpl());
     result = std::make_shared<AccumulateGrad>(Variable(std::move(intrusive_from_this)));
@@ -198,6 +200,7 @@ namespace impl {
   //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
   void add_hook(const Variable& self, std::shared_ptr<FunctionPreHook> hook) {
+    LOG(ERROR) << "hcz: adding a hook @" << hook.get() << " to a Variable @" << &self;
     materialize_autograd_meta(self)->hooks_.push_back(std::move(hook));
   }
 
