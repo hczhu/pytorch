@@ -120,6 +120,7 @@ namespace impl {
     }
   }
 
+  // Hook are associated with a tensor/variable
   std::shared_ptr<Node> grad_accumulator(const Variable& self) {
     auto autograd_meta = get_autograd_meta(self);
     if (!autograd_meta) {

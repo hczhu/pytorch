@@ -28,6 +28,7 @@ void AccumulateGrad::setDistAutogradContext(const DistAutogradContextPtr& ctx) {
 }
 
 auto AccumulateGrad::apply(variable_list&& grads) -> variable_list {
+  LOG(ERROR) << "hcz: AccumulateGrad::appy to " << grads.size() << " grads.";
   // XXX: this method is not thread-safe!
   check_input_variables("AccumulateGrad", grads, 1, 0);
 
