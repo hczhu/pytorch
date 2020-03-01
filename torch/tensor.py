@@ -11,6 +11,7 @@ from torch._six import imap
 from torch._C import _add_docstr
 from numbers import Number
 import functools
+from torch.hcz_logger import gLogger
 
 
 def _wrap_type_error_to_not_implemented(f):
@@ -195,6 +196,7 @@ class Tensor(torch._C._TensorBase):
                 be constructed, allowing to compute higher order derivative
                 products. Defaults to ``False``.
         """
+        gLogger.info(f"Running backward for {self.__repr__()}")
         torch.autograd.backward(self, gradient, retain_graph, create_graph)
 
     def register_hook(self, hook):
@@ -226,6 +228,7 @@ class Tensor(torch._C._TensorBase):
 
             >>> h.remove()  # removes the hook
         """
+        gLogger.info(f"Registering a hook backward for tensor: {self.__repr__()}")
         if not self.requires_grad:
             raise RuntimeError("cannot register a hook on a tensor that "
                                "doesn't require gradient")
