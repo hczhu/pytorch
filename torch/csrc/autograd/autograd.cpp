@@ -55,6 +55,7 @@ variable_list _make_grads(
   }
   return new_grads;
 }
+// hcz: the entry point of tensor.backward() in C++.
 variable_list run_backward(
     const variable_list& outputs,
     const variable_list& grad_outputs,
