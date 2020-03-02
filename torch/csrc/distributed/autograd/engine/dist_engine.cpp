@@ -131,6 +131,9 @@ void DistEngine::computeDependencies(
             //  its ancestors need to be executed as well.
             if (dynamic_cast<RecvRpcBackward*>(nextFn)) {
               recvBackwardEdges.emplace_back(edge);
+            } else if (auto ptr = dynamic_cast<AccumulateGrad*>(nextFn)) {
+              // Make 'AccumulateGrad' nodes operate on gradients on 'autogradContext'.
+              ptr->setDistAutogradContext(autogradContext);
             }
             outputEdges.emplace_back(edge);
           }
@@ -172,6 +175,15 @@ void DistEngine::computeDependencies(
     // Mark all 'RecvRPCBackward' as needing execution.
     for (const auto& recvBackwardEdge : recvBackwardEdges) {
       graphTask->exec_info_[recvBackwardEdge.function.get()].needed_ = true;
+    }
+    // Mark all output nodes as needed.
+    for (const auto& outputEdge : outputEdges) {
+      // 'RecvRpcBackward' nodes have already been marked at needed.
+      const auto func = outputEdge.function.get();
+      // All nodes in 'outputEdges' should have an entry in
+      // 'graphTask->exec_info_' after call init_to_execute().
+      TORCH_INTERNAL_ASSERT(graphTask->exec_info_.count(func));
+      graphTask->exec_info_[func].needed_ = true;
     }
   }
 

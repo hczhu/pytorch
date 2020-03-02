@@ -1,5 +1,6 @@
 #include <torch/csrc/autograd/functions/accumulate_grad.h>
 
+#include <torch/csrc/distributed/autograd/context/context.h>
 #include <torch/csrc/autograd/grad_mode.h>
 #include <torch/csrc/autograd/variable.h>
 #include <torch/csrc/autograd/functions/basic_ops.h>
@@ -20,6 +21,10 @@ AccumulateGrad::AccumulateGrad(Variable variable_)
     : Node(/*sequence_nr=*/UINT64_MAX)
     , variable(std::move(variable_)) {
   add_input_metadata(variable);
+}
+
+void AccumulateGrad::setDistAutogradContext(const DistAutogradContextPtr& ctx) {
+  distAutogradCtx = ctx;
 }
 
 auto AccumulateGrad::apply(variable_list&& grads) -> variable_list {
