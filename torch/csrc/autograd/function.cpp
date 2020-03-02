@@ -38,6 +38,15 @@ AnomalyMetadata* Node::metadata() noexcept {
   return anomaly_metadata_.get();
 }
 
+void Node::move_from(Node&& rhs) {
+  next_edges_ = std::move(rhs.next_edges_);
+  pyobj_ = rhs.pyobj_;
+  anomaly_metadata_ = std::move(rhs.anomaly_metadata_);
+  pre_hooks_ = std::move(rhs.pre_hooks_);
+  post_hooks_ = std::move(rhs.post_hooks_);
+  input_metadata_ = rhs.input_metadata_;
+}
+
 static void gatherFunctions(
     Node* func,
     std::vector<std::shared_ptr<Node>>& stack) {

@@ -19,6 +19,7 @@ namespace torch { namespace autograd {
  */
 struct InputMetadata {
   InputMetadata() = default;
+  InputMetadata(const InputMetadata&) = default;
 
   InputMetadata(const at::TensorOptions options, at::IntArrayRef shape, at::Device device)
   : options_{options}, shape_{shape}, device_{device} {
@@ -27,6 +28,8 @@ struct InputMetadata {
 
   InputMetadata(const at::Tensor& t)
   : InputMetadata(t.options(), t.sizes(), t.device()) { }
+
+  InputMetadata& operator=(const InputMetadata&) = default;
 
   const at::TensorOptions options() const {
     return options_;

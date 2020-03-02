@@ -517,6 +517,7 @@ if (NOT INTERN_BUILD_MOBILE OR NOT BUILD_CAFFE2_MOBILE)
         ${TORCH_SRC_DIR}/csrc/distributed/autograd/context/container.cpp
         ${TORCH_SRC_DIR}/csrc/distributed/autograd/context/context.cpp
         ${TORCH_SRC_DIR}/csrc/distributed/autograd/engine/dist_engine.cpp
+        ${TORCH_SRC_DIR}/csrc/distributed/autograd/functions/dist_accumulate_grad.cpp
         ${TORCH_SRC_DIR}/csrc/distributed/autograd/functions/recvrpc_backward.cpp
         ${TORCH_SRC_DIR}/csrc/distributed/autograd/functions/sendrpc_backward.cpp
         ${TORCH_SRC_DIR}/csrc/distributed/autograd/rpc_messages/autograd_metadata.cpp

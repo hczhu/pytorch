@@ -4,6 +4,7 @@
 #include <torch/csrc/autograd/input_buffer.h>
 #include <torch/csrc/distributed/autograd/context/container.h>
 #include <torch/csrc/distributed/autograd/engine/dist_engine.h>
+#include <torch/csrc/distributed/autograd/functions/dist_accumulate_grad.h>
 
 namespace torch {
 namespace distributed {
@@ -64,6 +65,8 @@ void DistEngine::validateRootsAndRetrieveEdges(
       rootEdges, grads, [](const std::string& msg) { return msg; });
 }
 
+// NB: this function modifies the autograd graph. More specifically it replaces
+// all AccumulateGrad nodes by DistAccumulateGrad.
 void DistEngine::computeDependencies(
     const ContextPtr& autogradContext,
     const edge_list& rootEdges,
@@ -99,11 +102,16 @@ void DistEngine::computeDependencies(
   edge_list recvBackwardEdges;
   // Traverse the graph.
   auto& dependencies = graphTask->dependencies_;
+  // If a node is in this map, it should be replaced by its corresponding value
+  // in the graph, i.e. all edges pointing to the key should point to the value.
+  std::unordered_map<const Node*, std::shared_ptr<DistAccumulateGrad>>
+      accumulate_grad_replacements;
   while (!queue.empty()) {
     auto fn = queue.front();
     queue.pop();
 
-    for (const auto& edge : fn->next_edges()) {
+    for (int index = 0; index < fn->num_outputs(); ++index) {
+      const auto& edge = fn->next_edge(index);
       if (auto nextFn = edge.function.get()) {
         dependencies[nextFn] += 1;
         const bool wasInserted = seen.insert(nextFn).second;
@@ -131,8 +139,35 @@ void DistEngine::computeDependencies(
             //  its ancestors need to be executed as well.
             if (dynamic_cast<RecvRpcBackward*>(nextFn)) {
               recvBackwardEdges.emplace_back(edge);
+            } else if (
+                auto accumulateGradFn = dynamic_cast<AccumulateGrad*>(nextFn)) {
+              TORCH_INTERNAL_ASSERT(
+                  nextFn ==
+                      torch::autograd::impl::try_get_grad_accumulator(
+                          accumulateGradFn->variable)
+                          .get(),
+                  "The AccumulateGrad point in the variable should be the "
+                  "same as the one in autograph");
+              // Replace an AccumulateGrad node by DistAccumulateGrad,
+              // because the former accumulates grads to the variable's '.grad'
+              // without considering the context id. That may cause data race
+              // on the '.grad', since multiple context ids may have grads for
+              // the same '.grad'.
+              auto distAccumulateGradFn = std::make_shared<DistAccumulateGrad>(
+                  // The pointer to 'AccumulateGrad' in
+                  // 'accumulateGradFn->variable' will be replaced by a pointer
+                  // to 'distAccumulateGradFn'.
+                  std::move(*accumulateGradFn),
+                  autogradContext);
+              accumulate_grad_replacements[nextFn] = distAccumulateGradFn;
+              fn->next_edge(index).function = std::move(distAccumulateGradFn);
             }
             outputEdges.emplace_back(edge);
+          }
+        } else {
+          auto itr = accumulate_grad_replacements.find(nextFn);
+          if (itr != accumulate_grad_replacements.end()) {
+            fn->next_edge(index).function = itr->second;
           }
         }
       }
@@ -173,6 +208,11 @@ void DistEngine::computeDependencies(
     for (const auto& recvBackwardEdge : recvBackwardEdges) {
       graphTask->exec_info_[recvBackwardEdge.function.get()].needed_ = true;
     }
+    // Mark all output nodes as needed.
+    for (const auto& outputEdge : outputEdges) {
+      const auto func = outputEdge.function.get();
+      graphTask->exec_info_[func].needed_ = true;
+    }
   }
 
   // Let autograd context take ownership of the GraphTask.
@@ -209,21 +249,7 @@ std::shared_ptr<rpc::FutureMessage> DistEngine::runEngineAndAccumulateGradients(
           return;
         }
 
-        // Accumulate all the gradients in the context.
         TORCH_INTERNAL_ASSERT(grads.size() == outputEdges.size());
-        for (size_t i = 0; i < grads.size(); i++) {
-          // It is possible that the grad is not defined since a separate
-          // invocation of the autograd engine on the same node might actually
-          // compute this gradient. Also accumulate grads only for
-          // AccumulateGrad function.
-          if (grads[i].defined() &&
-              dynamic_cast<AccumulateGrad*>(outputEdges[i].function.get())) {
-            auto& variable = std::static_pointer_cast<AccumulateGrad>(
-                                 outputEdges[i].function)
-                                 ->variable;
-            autogradContext->accumulateGrad(variable, grads[i]);
-          }
-        }
 
         accumulateGradFuture->markCompleted(rpc::Message());
       });
