@@ -724,6 +724,8 @@ struct ClearCallbacks {
   std::mutex& callbacks_lock_;
 };
 
+// hcz: 'roots' are the self tensor in self.backward().
+// hcz: 'inputs' are Jacobian grads of the elements of 'roots'
 // hcz: 'outputs' points to leave nodes, usually 'AccumulateGrad'.
 auto Engine::execute(const edge_list& roots,
                      const variable_list& inputs,
