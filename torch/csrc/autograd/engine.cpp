@@ -976,9 +976,26 @@ void Engine::add_thread_pool_task(const std::weak_ptr<GraphTask>& graph_task) {
   thread_pool_shared_->work_.notify_one();
 }
 
-// hcz: The callsite of distributed autogra doesn't put 'AccumulateGrad' in 'outputs'.
+// hcz: The callsite of distributed autogra doesn't put 'AccumulateGrad' in 'outputs'??
+// hcz: not sure about that actually
 void GraphTask::init_to_execute(Node& graph_root, const edge_list& outputs) {
   exec_info_[&graph_root].needed_ = true;
+
+  std::string line = "graph root edges in init_to_execute:";
+  for (const auto & input : graph_root.next_edges()) {
+    if (auto func = input.function.get()) {
+      line += " " + func->name() + "@" + std::to_string(func->sequence_nr());
+    }
+  }
+  LOG(ERROR) << "hcz: " << line;
+
+  line = "outputs in init_to_execute:";
+  for (auto & output_edge : outputs) {
+    if (auto func = output_edge.function.get()) {
+      line += " " + func->name() + "@" + std::to_string(func->sequence_nr());
+    }
+  }
+  LOG(ERROR) << "hcz: " << line;
 
   int output_idx = 0;
   for (auto & output_edge : outputs) {
