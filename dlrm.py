@@ -155,7 +155,7 @@ class Trainer:
             loss *= -1
         loss.backward()
         self.dlrm.print_parameters()
-        return list(self.dlrm.parameters())
+        return [param.grad for param in self.dlrm.parameters()]
 
 
 def get_training_examples():
@@ -216,8 +216,9 @@ class TestDlrmWithDDP(MultiProcessTestCase):
                     Trainer.do_one_example, trainer_rref, training_examples[idx]
                 )
             )
-        for future in futures:
-            future.wait()
+        for rank, future in enumerate(futures):
+            grads = future.wait()
+            gLogger.info(f"Grads for trainer #{rank + 1}: {grads}")
 
     @dist_init
     def _master_process(self, use_ddp: bool):
