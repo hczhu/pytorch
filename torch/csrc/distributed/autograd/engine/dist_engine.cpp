@@ -106,7 +106,7 @@ void DistEngine::computeDependencies(
   auto& dependencies = graphTask->dependencies_;
   // If a node is in this map, it should be replaced by its corresponding value
   // in the graph, i.e. all edges pointing to the key should point to the value.
-  std::unordered_map<const Node*, std::shared_ptr<DistAccumulateGrad>>
+  std::unordered_map<Node*, std::shared_ptr<DistAccumulateGrad>>
       accumulate_grad_replacements;
   while (!queue.empty()) {
     auto fn = queue.front();
@@ -188,6 +188,17 @@ void DistEngine::computeDependencies(
                << std::to_string(fn->sequence_nr()) << ": " << line;
   }
   LOG(ERROR) << "hcz: BFS in computeDependencies() is done.";
+  for (const auto& [node, distAccumulateGrad] : accumulate_grad_replacements) {
+    TORCH_INTERNAL_ASSERT(
+        dependencies.count(distAccumulateGrad.get()) == 0,
+        "DistAccumulateGrad nodes shouldn't be in dependencies");
+    auto itr = dependencies.find(node);
+    TORCH_INTERNAL_ASSERT(
+        itr != dependencies.end(),
+        "Replaced AccumulateGrad nodes should be in dependencies.");
+    dependencies[distAccumulateGrad.get()] = itr->second;
+    dependencies.erase(itr);
+  }
 
   // hcz: AccumulateGrad nodes are marked at not-needed and the local autograd 
   // engine doesn't call 'applly()' at all. That's why the post hook installed

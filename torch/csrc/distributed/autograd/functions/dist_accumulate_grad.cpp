@@ -17,7 +17,7 @@ DistAccumulateGrad::DistAccumulateGrad(
 
 void DistAccumulateGrad::replace_grad_accumulator() {
   // Replace the variable's reference to AccumulateGrad.
-  torch::autograd::impl::replace_grad_accumulator(
+  torch::autograd::impl::set_grad_accumulator(
       variable_, this->shared_from_this());
 }
 
