@@ -168,6 +168,7 @@ void DistEngine::computeDependencies(
                   // to 'distAccumulateGradFn'.
                   std::move(*accumulateGradFn),
                   autogradContext);
+              LOG(ERROR) << "hcz: created a DistAccumulateGrad @" << distAccumulateGradFn.get() << " for AccumulateGrad @" << nextFn;
               accumulate_grad_replacements[nextFn] = distAccumulateGradFn;
               fn->next_edge(index).function = std::move(distAccumulateGradFn);
             }
@@ -176,6 +177,7 @@ void DistEngine::computeDependencies(
         } else {
           auto itr = accumulate_grad_replacements.find(nextFn);
           if (itr != accumulate_grad_replacements.end()) {
+            LOG(ERROR) << "hcz: Replaced a AccumulateGrad @" << nextFn << " by DistAccumulateGrad @" << itr->second.get();
             fn->next_edge(index).function = itr->second;
           }
         }
