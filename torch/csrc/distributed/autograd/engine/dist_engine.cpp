@@ -168,6 +168,7 @@ void DistEngine::computeDependencies(
                   // to 'distAccumulateGradFn'.
                   std::move(*accumulateGradFn),
                   autogradContext);
+              distAccumulateGradFn->replace_grad_accumulator();
               LOG(ERROR) << "hcz: created a DistAccumulateGrad @" << distAccumulateGradFn.get() << " for AccumulateGrad @" << nextFn;
               accumulate_grad_replacements[nextFn] = distAccumulateGradFn;
               fn->next_edge(index).function = std::move(distAccumulateGradFn);

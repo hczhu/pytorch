@@ -13,8 +13,11 @@ DistAccumulateGrad::DistAccumulateGrad(
       variable_(std::move(accumulateGrad.variable)),
       autogradContext_(std::move(autogradContext)) {
   move_from(std::move(accumulateGrad));
+}
+
+void DistAccumulateGrad::replace_grad_accumulator() {
   // Replace the variable's reference to AccumulateGrad.
-  torch::autograd::impl::set_grad_accumulator(
+  torch::autograd::impl::replace_grad_accumulator(
       variable_, this->shared_from_this());
 }
 

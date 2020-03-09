@@ -28,6 +28,8 @@ class TORCH_API DistAccumulateGrad : public Node {
 
   variable_list apply(variable_list&& grads) override;
 
+  void replace_grad_accumulator();
+
  private:
   Variable variable_;
   std::shared_ptr<DistAutogradContext> autogradContext_;
