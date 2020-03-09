@@ -150,6 +150,10 @@ void DistEngine::computeDependencies(
               recvBackwardEdges.emplace_back(edge);
             } else if (
                 auto accumulateGradFn = dynamic_cast<AccumulateGrad*>(nextFn)) {
+              LOG(ERROR) << "hcz: AccumulateGrad @"
+                         << accumulateGradFn->sequence_nr() << " on variable @"
+                         << accumulateGradFn->variable.unsafeGetTensorImpl();
+
               TORCH_INTERNAL_ASSERT(
                   !accumulateGradFn->variable.defined() ||
                       nextFn ==
@@ -170,6 +174,7 @@ void DistEngine::computeDependencies(
                   std::move(*accumulateGradFn),
                   autogradContext);
               distAccumulateGradFn->replace_grad_accumulator();
+              LOG(ERROR) << "hcz: created a DistAccumulateGrad @" << distAccumulateGradFn.get() << " for AccumulateGrad @" << nextFn;
               accumulate_grad_replacements[nextFn] = distAccumulateGradFn;
               fn->next_edge(index).function = std::move(distAccumulateGradFn);
               TORCH_INTERNAL_ASSERT(edge == fn->next_edge(index));
@@ -179,6 +184,7 @@ void DistEngine::computeDependencies(
         } else {
           auto itr = accumulate_grad_replacements.find(nextFn);
           if (itr != accumulate_grad_replacements.end()) {
+            LOG(ERROR) << "hcz: Replaced a AccumulateGrad @" << nextFn << " by DistAccumulateGrad @" << itr->second.get();
             fn->next_edge(index).function = itr->second;
           }
         }
