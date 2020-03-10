@@ -23,6 +23,7 @@ AccumulateGrad::AccumulateGrad(Variable variable_)
 }
 
 auto AccumulateGrad::apply(variable_list&& grads) -> variable_list {
+  LOG(ERROR) << "hcz: AccumulateGrad::appy to " << grads.size() << " grads.";
   check_input_variables("AccumulateGrad", grads, 1, 0);
 
   if (!grads[0].defined())

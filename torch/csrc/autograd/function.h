@@ -190,6 +190,10 @@ struct TORCH_API Node : std::enable_shared_from_this<Node> {
     return next_edges_[index];
   }
 
+  Edge& next_edge(size_t index) noexcept {
+    return next_edges_[index];
+  }
+
   void set_next_edge(size_t index, Edge edge) {
     next_edges_[index] = std::move(edge);
   }
@@ -229,6 +233,7 @@ struct TORCH_API Node : std::enable_shared_from_this<Node> {
   /// output of this function should be computed.
   bool should_compute_output(size_t output_edge_index) const {
     TORCH_CHECK(output_edge_index < num_outputs(), "Index out of range");
+    // Whether the edge has a function attached.
     return next_edges_[output_edge_index].is_valid();
   }
 
@@ -262,6 +267,7 @@ struct TORCH_API Node : std::enable_shared_from_this<Node> {
   //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
   uintptr_t add_post_hook(std::unique_ptr<FunctionPostHook>&& post_hook) {
+    LOG(ERROR) << "hcz: add a post hook @"<< post_hook.get();
     post_hooks_.push_back(std::move(post_hook));
     // Use the raw pointer as the unique key to identify this hook. This key
     // can then be used in del_post_hook(key) to remove this hook.
@@ -289,6 +295,7 @@ struct TORCH_API Node : std::enable_shared_from_this<Node> {
   }
 
   void add_pre_hook(std::unique_ptr<FunctionPreHook>&& pre_hook) {
+    LOG(ERROR) << "hcz: add a pre hook @"<< pre_hook.get();
     pre_hooks_.push_back(std::move(pre_hook));
   }
 
@@ -337,11 +344,17 @@ struct TORCH_API Node : std::enable_shared_from_this<Node> {
  protected:
   static uint64_t& get_next_sequence_nr();
 
+  // hcz: 'inputs' has grads for all ordered incoming edges to this node/function in the reverse grad graph.
+  // The inputs of this node during the forward pass are bookkeeped inside the node/function itself,
+  // e.g. 'mul_Tensor()' set up a 'MulBackward0' during forward pass.
   /// Performs the `Node`'s actual operation.
   virtual variable_list apply(variable_list&& inputs) = 0;
 
   /// Calls `apply()`, but instruments it with tracing machinery.
   variable_list traced_apply(variable_list inputs);
+
+  // Move/copy all fields from 'rhs'.
+  void move_from(Node&& rhs);
 
   // Since `Node`s are neither copyable nor moveable, we can have const
   // fields.

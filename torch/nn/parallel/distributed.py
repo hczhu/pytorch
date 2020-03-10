@@ -15,6 +15,7 @@ from .replicate import replicate
 from .scatter_gather import scatter_kwargs, gather
 from .parallel_apply import parallel_apply
 from torch.cuda._utils import _get_device_index
+from torch.hcz_logger import gLogger
 
 
 def _find_tensors(obj):
@@ -279,7 +280,9 @@ class DistributedDataParallel(Module):
 
         # Sync params and buffers
         module_states = list(self.module.state_dict().values())
+
         if len(module_states) > 0:
+            gLogger.info(f"_distributed_broadcast_coalesced module states {module_states}")
             self._distributed_broadcast_coalesced(
                 module_states,
                 self.broadcast_bucket_size)
@@ -340,11 +343,13 @@ class DistributedDataParallel(Module):
                     lambda parameter: parameter.requires_grad,
                     module.parameters(recurse=False))
             ] for replica in self._module_copies]
+        gLogger.info(f"There are {len(modules_and_parameters)} module and paramter pairs in DDP.")
 
         # Build list of parameters.
         parameters = [
             list(parameter for _, parameter in replica)
             for replica in modules_and_parameters]
+        gLogger.info(f"{len(parameters)} paramter lists to all-reduce in DDP: {parameters}.")
 
         # Checks if a module will produce a sparse gradient.
         def produces_sparse_gradient(module):
@@ -370,6 +375,7 @@ class DistributedDataParallel(Module):
             [1024 * 1024, self.bucket_bytes_cap],
             expect_sparse_gradient[0])
 
+        gLogger.info(f"Creating a reducer with parameters {parameters} and bucket_indices {list(reversed(bucket_indices))}")
         # Note: reverse list of buckets because we want to approximate the
         # order in which their gradients are produced, and assume they
         # are used in the forward pass in the order they are defined.
@@ -437,6 +443,7 @@ class DistributedDataParallel(Module):
 
     def forward(self, *inputs, **kwargs):
         if self.require_forward_param_sync:
+            gLogger.info(f"Syncing paramters in forward()")
             self._sync_params()
 
         if self.device_ids:
@@ -483,6 +490,7 @@ class DistributedDataParallel(Module):
         dist._broadcast_coalesced(self.process_group, tensors, buffer_size)
 
     def _sync_params(self):
+        gLogger.info(f"Syncing params")
         with torch.no_grad():
             # only do intra-node parameters sync for replicated single-device
             # CUDA modules
@@ -506,6 +514,7 @@ class DistributedDataParallel(Module):
 
             # module buffer sync
             if self.broadcast_buffers and len(self.modules_buffers[0]) > 0:
+                gLogger.info(f"Syncing params by broadcasting: {self.modules_buffers[0]}")
                 # Synchronize buffers across processes.
                 # The process with rank 0 is considered the authoritative copy.
                 self._distributed_broadcast_coalesced(

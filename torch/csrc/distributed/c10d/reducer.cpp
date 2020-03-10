@@ -55,6 +55,7 @@ Reducer::Reducer(
       backward_stats_base_(0) {
   C10_LOG_API_USAGE_ONCE("torch.distributed.ddp.reducer");
 
+  LOG(ERROR) << "hcz: Creating a reducer with " << replicas_.size() << " replicas.";
   TORCH_CHECK(replicas_.size() >= 1, "Expected at least one model replica.");
   TORCH_CHECK(replicas_[0].size() >= 1, "Expected at least one parameter.");
 
@@ -270,6 +271,7 @@ void Reducer::mark_variable_ready_sparse(VariableIndex index) {
 // model parameter has been accumulated into its gradient tensor.
 // This function is only to be called from the autograd thread.
 void Reducer::autograd_hook(VariableIndex index) {
+  LOG(ERROR) << "hcz: Calling Reducer::autograd_hook for replica_index: " << index.replica_index << " and variable_index: " << index.variable_index;
   std::lock_guard<std::mutex> lock(this->mutex_);
   // Since it gets here, this param has been used for this iteration. We want
   // to mark it in local_used_maps_. During no_sync session, the same var can

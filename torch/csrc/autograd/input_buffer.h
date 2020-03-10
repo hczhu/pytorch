@@ -38,6 +38,10 @@ struct InputBuffer {
   // Returns the inputs as a list of variables. Destroys given InputBuffer.
   static std::vector<Variable> variables(InputBuffer&& g);
 
+  size_t size() const {
+    return buffer.size();
+  }
+
 private:
   std::vector<Variable> buffer;
 };

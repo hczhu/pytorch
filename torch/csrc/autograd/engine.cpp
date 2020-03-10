@@ -491,14 +491,18 @@ void GraphTask::set_exception(
 }
 
 static variable_list call_pre_hooks(Node& fn, variable_list inputs) {
+  LOG(ERROR) << "hcz: calling pre hooks for Node: " << fn.name();
   for (const auto& hook : fn.pre_hooks()) {
+    LOG(ERROR) << "hcz: one pre hook @" << hook.get();
     inputs = (*hook)(inputs);
   }
   return inputs;
 }
 
 static variable_list call_post_hooks(Node& fn, variable_list outputs, const variable_list& inputs) {
+  LOG(ERROR) << "hcz: calling post hooks for Node: " << fn.name();
   for (const auto& hook : fn.post_hooks()) {
+    LOG(ERROR) << "hcz: one post hook @" << hook.get();
     outputs = (*hook)(outputs, inputs);
   }
   return outputs;
@@ -579,6 +583,8 @@ static variable_list call_function(
   }
 
   const auto has_post_hooks = !fn.post_hooks().empty();
+  LOG(ERROR) << "hcz: call_function in engine for node: @" << func << " "
+             << func->name() << " has post hook: " << has_post_hooks;
   variable_list outputs;
 
   {
@@ -624,6 +630,7 @@ void Engine::evaluate_function(
     std::shared_ptr<GraphTask>& graph_task,
     Node* func,
     InputBuffer& inputs) {
+  LOG(ERROR) << "hcz: calling Engine::evaluate_function() for func " << func->name() << " with " << inputs.size() << " inputs for task @" << graph_task.get() << " seq: " << func->sequence_nr();
   // If exec_info_ is not empty, we have to instrument the execution
   auto& exec_info_ = graph_task->exec_info_;
   if (!exec_info_.empty()) {
@@ -640,6 +647,7 @@ void Engine::evaluate_function(
       }
     }
     if (!fn_info.needed_) {
+      LOG(ERROR) << "hcz: this node/func is not needed!";
       // Skip execution if we don't need to execute the function.
       return;
     }
@@ -759,16 +767,22 @@ auto Engine::compute_dependencies(Node* root, GraphTask& task) -> void {
   auto& dependencies = task.dependencies_;
   while (!queue.empty()) {
     auto fn = queue.back(); queue.pop_back();
+    std::string line = "hcz: Edges from node @" + std::to_string(fn->sequence_nr()) + fn->name();
     for (const auto& edge : fn->next_edges()) {
       if (auto next_ptr = edge.function.get()) {
+        line += "\n    ===> " + next_ptr->name() + " @" + std::to_string(next_ptr->sequence_nr());
         dependencies[next_ptr] += 1;
         const bool was_inserted = seen.insert(next_ptr).second;
         if (was_inserted) queue.push_back(next_ptr);
       }
     }
+    LOG(ERROR) << line;
   }
 }
 
+// hcz: 'roots' are the self tensor in self.backward().
+// hcz: 'inputs' are Jacobian grads of the elements of 'roots'
+// hcz: 'outputs' points to leave nodes, usually 'AccumulateGrad'.
 auto Engine::execute(const edge_list& roots,
                      const variable_list& inputs,
                      bool keep_graph,
@@ -792,6 +806,9 @@ auto Engine::execute(const edge_list& roots,
       /* depth */ not_reentrant_backward_call ? 0 : total_depth + 1,
       /* cpu_ready_queue */ local_ready_queue);
 
+  LOG(ERROR) << "hcz: running Engine::execute() for "
+    << roots.size() <<" roots and "
+    << final_callbacks_.size() << " final callbacks and " << inputs.size() << " input Jacobian grads and " << outputs.size() << " output edges.";
   // Now compute the dependencies for all executable functions and queue the root
   auto graph_root = std::make_shared<GraphRoot>(roots, inputs);
   compute_dependencies(graph_root.get(), *graph_task);
@@ -861,10 +878,13 @@ void Engine::execute_graph_task_with_continuation(const std::shared_ptr<GraphTas
 
 }
 
+// hcz: the entry point of dist_autograph backward() call chain into the local engine.
 std::shared_ptr<FutureVariableList> Engine::execute_with_graph_task(
     const std::shared_ptr<GraphTask>& graph_task,
     std::shared_ptr<Node> graph_root,
     bool async_mode) {
+  LOG(ERROR) << "hcz: Running local engine execute_with_graph_task() with root: @"
+            << graph_root.get();
   initialize_device_threads_pool();
   // Lock mutex for GraphTask.
   std::unique_lock<std::mutex> lock(graph_task->mutex_);
@@ -1122,8 +1142,26 @@ void Engine::add_thread_pool_task(const std::weak_ptr<GraphTask>& graph_task) {
   thread_pool_shared_->work_.notify_one();
 }
 
+// hcz: The callsite of distributed autogra doesn't put 'AccumulateGrad' in 'outputs'??
+// hcz: not sure about that actually
 void GraphTask::init_to_execute(Node& graph_root, const edge_list& outputs) {
   exec_info_[&graph_root].needed_ = true;
+
+  std::string line = "graph root edges in init_to_execute:";
+  for (const auto & input : graph_root.next_edges()) {
+    if (auto func = input.function.get()) {
+      line += " " + func->name() + "@" + std::to_string(func->sequence_nr());
+    }
+  }
+  LOG(ERROR) << "hcz: " << line;
+
+  line = "outputs in init_to_execute:";
+  for (auto & output_edge : outputs) {
+    if (auto func = output_edge.function.get()) {
+      line += " " + func->name() + "@" + std::to_string(func->sequence_nr());
+    }
+  }
+  LOG(ERROR) << "hcz: " << line;
 
   int output_idx = 0;
   for (auto & output_edge : outputs) {
@@ -1167,6 +1205,8 @@ void GraphTask::init_to_execute(Node& graph_root, const edge_list& outputs) {
       if (Node *next_fn = frame.get_next_fn()) {
         if (/* bool unseen = */ seen.emplace(next_fn).second) {
           stack.emplace_back(next_fn);
+          const auto needed = exec_info_[next_fn].needed_;
+          LOG(ERROR) << "hcz: Initially node " << next_fn->name() << "@" << next_fn->sequence_nr() << " is" << (needed ? "" : " not") << " needed.";
           continue; // recurse
         }
       } else {
@@ -1179,6 +1219,7 @@ void GraphTask::init_to_execute(Node& graph_root, const edge_list& outputs) {
               auto it = exec_info_.find(edge.function.get());
               return it != exec_info_.end() && it->second.should_execute();
             });
+        LOG(ERROR) << "hcz: node " << frame.fn_->name() << "@" << frame.fn_->sequence_nr() << " is" << (needed ? "" : " not") << " needed.";
         exec_info_[frame.fn_].needed_ = needed;
         stack.pop_back();
       }

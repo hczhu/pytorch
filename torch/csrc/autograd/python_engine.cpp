@@ -196,7 +196,11 @@ PyObject *THPEngine_run_backward(THPEngine *self, PyObject *args, PyObject *kwar
   {
     pybind11::gil_scoped_release no_gil;
     auto& engine = python::PythonEngine::get_python_engine();
-    outputs = engine.execute(roots, grads, keep_graph, create_graph, output_edges);
+    LOG(ERROR) << "hcz: running engine.execute() on " << roots.size()
+               << " roots and " << grads.size() << " input Jacobian grads and "
+               << output_edges.size() << " output edges.";
+    outputs =
+        engine.execute(roots, grads, keep_graph, create_graph, output_edges);
   }
 
   if (inputs != nullptr) {

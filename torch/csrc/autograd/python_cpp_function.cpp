@@ -143,6 +143,8 @@ PyObject* THPCppFunction_register_hook_dict(PyObject* self, PyObject* _var)
   auto& fn = *((THPCppFunction*)self)->cdata;
   std::unique_ptr<FunctionPreHook> hook(
       new PyFunctionPreHook(var->backward_hooks, var->cdata.output_nr()));
+  LOG(ERROR) << "hcz: adding a pre hook for node: " << fn.name() << " @"
+             << fn.sequence_nr();
   fn.add_pre_hook(std::move(hook));
   Py_RETURN_NONE;
 }
