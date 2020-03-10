@@ -33,6 +33,7 @@ struct TORCH_API AccumulateGrad : public Node {
       size_t num_expected_refs,
       const T& update_grad) {
     for (auto& hook : impl::hooks(variable)) {
+      LOG(ERROR) << "hcz: calling hook @" << hook << " for variable " << variable.toString();
       new_grad = (*hook)({new_grad})[0];
     }
 

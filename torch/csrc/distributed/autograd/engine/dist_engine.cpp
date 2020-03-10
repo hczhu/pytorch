@@ -125,9 +125,11 @@ void DistEngine::computeDependencies(
           queue.push(nextFn);
 
           if (nextFn->next_edges().empty()) {
-            if (dynamic_cast<AccumulateGrad*>(nextFn)) {
+            if (auto ptr = dynamic_cast<AccumulateGrad*>(nextFn)) {
               LOG(ERROR) << "AccumulateGrad has " << nextFn->num_inputs()
-                         << " inputs and " << edge.function.use_count() << " shared_ptr use_count.";
+                         << " inputs and " << edge.function.use_count()
+                         << " shared_ptr use_count for variable: "
+                         << ptr->variable.toString();
             }
             TORCH_INTERNAL_ASSERT(
                 dynamic_cast<AccumulateGrad*>(nextFn) ||
