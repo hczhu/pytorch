@@ -224,6 +224,7 @@ void DistEngine::computeDependencies(
   //    is unique in the sense that we use it as a leaf node in graph to compute
   //    needed execution accurately, but unlike AccumulateGrad, we do need to
   //    execute this function.
+  outputEdges.clear();
   if (!outputEdges.empty()) {
     // Compute 'needed execution' starting from all 'send' functions and the
     // original graphRoot.
@@ -253,6 +254,8 @@ void DistEngine::computeDependencies(
     }
   }
 
+  // Run the whole autograd graph
+  TORCH_INTERNAL_ASSERT(graphTask->exec_info_.empty());
   // Let autograd context take ownership of the GraphTask.
   autogradContext->setGraphTask(std::move(graphTask));
 }
